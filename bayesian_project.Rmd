@@ -1,0 +1,236 @@
+---
+title: "Bayesian modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(BAS)
+library(GGally)
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `movies`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+The dataset "movies" is comprised of 651 randomly sampled movies produced and released before 2016. This dataset includes information from both [Rotten Tomatoes](https://www.rottentomatoes.com/) and [IMDb](http://www.imdb.com/).
+
+Rotten Tomatoes is a website launched in August 1998 devoted to film reviews and news; it is widely known as a film review aggregator. Coverage now includes TV content as well. The name derives from the practice of audiences throwing rotten tomatoes when disapproving of a poor stage performance. The company was created by Senh Duong and since January 2010 has been owned by Flixster, which itself was acquired in 2011 by Warner Bros.
+
+The Internet Movie Database (abbreviated IMDb) is an online database of information related to films, television programs and video games, including cast, production crew, fictional characters, biographies, plot summaries, trivia and reviews. Actors and crew can post their own résumé and upload photos of themselves for a yearly fee. U.S. users can view over 6000 movies and television shows from CBS, Sony, and various independent filmmakers.
+
+This dataset contains information about the type of the movie, genre, runtime, studio, release, critics rating, director and so on.
+
+### Sampling Design
+
+The target population of this dataset is U.S. movies theatrically released between 1970 and 2014. The movies composing this dataset are randomly sampled from two famous Internet databases for movies : Rotten Tomatoes and IMDb.
+
+#### Scope of Inference
+
+From what is described in the points above, it seems pretty clear that the "movies" dataset should be considered the result of an observational retrospective study that uses a random sampling design to select a representative sample from U.S. movies.
+
+#### Generalizability
+
+As it is, our results should be generalizable to all U.S. movies released between 1970 and 2014.
+
+#### Causality
+
+As is well-known, making causal conclusions based on observational data is not recommended. Observational studies are only sufficient to show associations.
+
+* * *
+
+## Part 2: Data manipulation
+
+First we create the new variable *feature_film* which characterizes if a movie is a feature film or not.
+
+```{r}
+movies_ext <- movies %>% mutate(feature_film = ifelse(title_type == "Feature Film", "yes", "no")) %>% mutate(feature_film = factor(feature_film, levels = c("yes", "no")))
+```
+
+Then we go on to create the new variable *drama* which characterizes if a movie is a drama or not.
+
+```{r}
+movies_ext <- movies_ext %>% mutate(drama = ifelse(genre == "Drama", "yes", "no")) %>% mutate(drama = factor(drama, levels = c("yes", "no")))
+```
+
+Next, we create the new variabel *mpaa_rating_R* which characterizes if a movie is R-rated or not.
+
+```{r}
+movies_ext <- movies_ext %>% mutate(mpaa_rating_R = ifelse(mpaa_rating == "R", "yes", "no")) %>% mutate(mpaa_rating_R = factor(mpaa_rating_R, levels = c("yes", "no")))
+```
+
+Finally, we create two new variables *oscar_season* and *summer_season* which characterize if a movie is released in November, October, December, or released in May, June, July, August respectively.
+
+```{r}
+movies_ext <- movies_ext %>% mutate(oscar_season = ifelse(thtr_rel_month %in% c(10, 11, 12), "yes", "no")) %>% mutate(oscar_season = factor(oscar_season, levels = c("yes", "no")))
+movies_ext <- movies_ext %>% mutate(summer_season = ifelse(thtr_rel_month %in% c(5, 6, 7, 8), "yes", "no")) %>% mutate(summer_season = factor(summer_season, levels = c("yes", "no")))
+```
+
+We will finally coerce the variable *thtr_rel_year* as a factor.
+
+```{r}
+movies_ext <- movies_ext %>% mutate(thtr_rel_year = factor(thtr_rel_year))
+```
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+Let's begin by plotting a histogram of the response variable.
+
+```{r}
+ggplot(movies_ext, aes(x = audience_score)) + geom_histogram() + xlab("Audience Score") + ylab("Count") + ggtitle("Histogram of Audience Score")
+summary(movies_ext$audience_score)
+```
+
+The distribution of the *audience_score* variable exhibits a left skew and may be uni- or bimodal.
+
+### Boxplots of Response vs. Categorical Predictors
+
+Now, we are able to begin our exploratory data analysis, first we will use boxplots to visualize how our categorical variables of interest interact with the response variable.
+
+```{r}
+ggplot(movies_ext, aes(x = feature_film, y = audience_score)) + geom_boxplot() + xlab("Feature Film") + ylab("Audience Score") + ggtitle("Audience Score vs. Feature Film")
+movies_ext %>% group_by(feature_film) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+It seems that the variables *feature_film* and the response *audience_score* are in some way associated.
+
+```{r}
+ggplot(movies_ext, aes(x = drama, y = audience_score)) + geom_boxplot() + xlab("Drama") + ylab("Audience Score") + ggtitle("Audience Score vs. Drama")
+movies_ext %>% group_by(drama) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here, it is not so clear that the variables *drama* and the response *audience_score* are associated. The variable *drama* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = mpaa_rating_R, y = audience_score)) + geom_boxplot() + xlab("R-Rated") + ylab("Audience Score") + ggtitle("Audience Score vs. R-Rated")
+movies_ext %>% group_by(mpaa_rating_R) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it is not so clear that the variables *mpaa_rating_R* and the response *audience_score* are associated. The variable *mpaa_rating_R* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = thtr_rel_year, y = audience_score)) + geom_boxplot() + xlab("Release Year") + ylab("Audience Score") + ggtitle("Audience Score vs. Release Year") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+movies_ext %>% group_by(thtr_rel_year) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+The variables *thtr_rel_year* and the response *audience_score* may be in some way associated.
+
+```{r}
+ggplot(movies_ext, aes(x = oscar_season, y = audience_score)) + geom_boxplot() + xlab("Oscar Season") + ylab("Audience Score") + ggtitle("Audience Score vs. Oscar Season")
+movies_ext %>% group_by(oscar_season) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it is not so clear that the variables *oscar_season* and the response *audience_score* are associated. The variable *oscar_season* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = summer_season, y = audience_score)) + geom_boxplot() + xlab("Summer Season") + ylab("Audience Score") + ggtitle("Audience Score vs. Summer Season")
+movies_ext %>% group_by(summer_season) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here again, it is not so clear that the variables *summer_season* and the response *audience_score* are associated. The variable *summer_season* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = best_pic_nom, y = audience_score)) + geom_boxplot() + xlab("Best Picture Nomination") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Picture Nomination")
+movies_ext %>% group_by(best_pic_nom) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+It seems that the variables *best_pic_nom* and the response *audience_score* are in some way associated.
+
+```{r}
+ggplot(movies_ext, aes(x = best_pic_win, y = audience_score)) + geom_boxplot() + xlab("Best Picture Winner") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Picture Winner")
+movies_ext %>% group_by(best_pic_win) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Again, it seems that the variables *best_pic_nom* and the response *audience_score* are in some way associated.
+
+```{r}
+ggplot(movies_ext, aes(x = best_actor_win, y = audience_score)) + geom_boxplot() + xlab("Best Actor Winner") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Actor Winner")
+movies_ext %>% group_by(best_actor_win) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here, it is not so clear that the variables *best_actor_win* and the response *audience_score* are associated. The variable *best_actor_win* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = best_actress_win, y = audience_score)) + geom_boxplot() + xlab("Best Actress Winner") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Actress Winner")
+movies_ext %>% group_by(best_actress_win) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it is not so clear that the variables *best_actress_win* and the response *audience_score* are associated. The variable *best_actress_win* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = best_dir_win, y = audience_score)) + geom_boxplot() + xlab("Best Director Winner") + ylab("Audience Score") + ggtitle("Audience Score vs. Best Director Winner")
+movies_ext %>% group_by(best_dir_win) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+Here also, it is not so clear that the variables *best_dir_win* and the response *audience_score* are associated. The variable *best_dir_win* may not be a good predictor for the response.
+
+```{r}
+ggplot(movies_ext, aes(x = top200_box, y = audience_score)) + geom_boxplot() + xlab("Top 200 Box Office") + ylab("Audience Score") + ggtitle("Audience Score vs. Top 200 Box Office")
+movies_ext %>% group_by(top200_box) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+```
+
+It seems that the variables *top200_box* and the response *audience_score* are in some way associated.
+
+### Scatterplots of Response vs. Numerical Predictors
+
+Now, we will use scatterplots to visualize how our numerical variables of interest interact with our response variable.
+
+```{r warning = FALSE}
+ggpairs(movies_ext, columns = c(18, 4, 13, 14, 16), axisLabels = "none", columnLabels = c("Score", "Runtime", "Ratings", "Votes", "Critics"), title = "Pairs of Numerical Variables")
+```
+
+As we may see above, the correlations between predictors are not very high (bar *imdb_rating* and *critics_score*), which is a good thing when modeling with linear regression as it helps avoiding collinearity. We may also note that the variable *runtime* does not seem to be good predictors for our response variable.
+
+### Conclusion
+
+As our previous plots show, the variables *mpaa_rating_R*, *oscar_season*, *summer_season*, *besr_actor_win*, *best_actress_win* and *runtime* do not seem to be particularly relevant. However, we will keep them in our modeling phase to have a better answer to the research question.
+
+```{r}
+movies_ext_reg <- movies_ext %>% select(feature_film, drama, runtime, mpaa_rating_R, thtr_rel_year, oscar_season, summer_season, imdb_rating, imdb_num_votes, critics_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box)
+```
+
+* * *
+
+## Part 4: Modeling
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button above. Make sure that your code is visible in the project you submit. 
+Delete this note when before you submit your work.
+
+* * *
+
+## Part 5: Prediction
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button above. Make sure that your code is visible in the project you submit. 
+Delete this note when before you submit your work.
+
+* * *
+
+## Part 6: Conclusion
+
