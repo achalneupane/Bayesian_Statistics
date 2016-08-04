@@ -94,7 +94,6 @@ We will finally coerce the variable *thtr_rel_year* as a factor.
 movies_ext <- movies_ext %>% mutate(thtr_rel_year = factor(thtr_rel_year))
 ```
 
-
 * * *
 
 ## Part 3: Exploratory data analysis
@@ -211,16 +210,103 @@ As we may see above, the correlations between predictors are not very high (bar 
 As our previous plots show, the variables *mpaa_rating_R*, *oscar_season*, *summer_season*, *besr_actor_win*, *best_actress_win* and *runtime* do not seem to be particularly relevant. However, we will keep them in our modeling phase to have a better answer to the research question.
 
 ```{r}
-movies_ext_reg <- movies_ext %>% select(feature_film, drama, runtime, mpaa_rating_R, thtr_rel_year, oscar_season, summer_season, imdb_rating, imdb_num_votes, critics_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box)
+movies_ext_reg <- movies_ext %>% select(audience_score, feature_film, drama, runtime, mpaa_rating_R, thtr_rel_year, oscar_season, summer_season, imdb_rating, imdb_num_votes, critics_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box)
 ```
 
 * * *
 
 ## Part 4: Modeling
 
-NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
-button above. Make sure that your code is visible in the project you submit. 
-Delete this note when before you submit your work.
+We may recall that under the model
+
+$$y_i = \beta_0 + \sum_j^p\beta_j \cdot x_{ij} + \epsilon_i$$
+
+if $\epsilon_i \sim N(0, \sigma^2)$ and the reference prior $p(\beta_0,\cdots,\beta_p,\sigma^2) \propto 1/\sigma^2$ is used, then the Bayesian posterior means and standard deviations will be equal to the frequentist estimates and standard errors respectively.  
+
+### Model Diagnostics
+
+As the Bayesian model assumes that the errors are normally distributed with a constant variance, we have to check this assumption by examining the distribution of the residuals for the model. If the residuals are highly non-normal or skewed, the assumption is violated and any subsequent inference will not be valid.
+
+```{r echo = FALSE}
+ggQQ <- function(LM) # argument: a linear model
+{
+    y <- quantile(LM$resid[!is.na(LM$resid)], c(0.25, 0.75))
+    x <- qnorm(c(0.25, 0.75))
+    slope <- diff(y) / diff(x)
+    int <- y[1L] - slope * x[1L]
+    p <- ggplot(LM, aes(sample = .resid)) +
+        stat_qq(alpha = 0.5) +
+        geom_abline(slope = slope, intercept = int, color = "red")
+
+    return(p)
+}
+```
+
+
+```{r}
+m_audience <- lm(audience_score ~ ., data = movies_ext_reg)
+ggplot(data = m_audience, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Fitted values") +
+  ylab("Residuals")
+ggplot(data = m_audience, aes(x = .resid)) +
+  geom_histogram(binwidth = 3) +
+  xlab("Residuals")
+ggQQ(m_audience)
+```
+
+Based on the plots above it does seem that the residuals exhibit a moderate right skew which may render our inference non pertinent. We have to keep that fact in mind when we conclude our analysis.
+
+### Baseline Model
+
+Let's take a look at a summary for our baseline model.
+
+```{r}
+summary(m_audience)
+```
+
+As you may see from the summary above, many coefficients of independent variables are not statistically significant. 
+
+### Bayesian Model Averaging
+
+We will now use Bayesian Model Averaging (BMA), in which multiple models are averaged to obtain posteriors of coefficients and predictions from new data.
+
+```{r cache = TRUE}
+bma_audience <- bas.lm(audience_score ~ ., data = na.omit(movies_ext_reg), prior = "BIC", modelprior = uniform(), method = "MCMC")
+summary(bma_audience)
+```
+
+Here, the most likely model, which has posterior probability of 0.0068, includes an intercept and the variables *runtime*, *thtr_rel_year*, *imdb_rating* and *critics_score*.
+
+We amy also visualize the posterior distribution of the coefficients under the model averaging approach for the most likely model.
+
+```{r cache = TRUE}
+par(mfrow = c(2, 2))
+coef_audience <- coefficients(bma_audience)
+plot(coef_audience, subset = c(4, 36, 51, 53), ask = FALSE)
+```
+
+Below, you'll find the 95% credible intervals for these coefficients.
+
+```{r}
+confint(coef_audience)[c(4, 36, 51, 53), ]
+```
+
+### Interpretation of Model Coefficients
+
+```{r}
+print(data.frame("Name" = coef_audience$namesx, "Post Mean" = coef_audience$postmean, "Post SD" = coef_audience$postsd)[c(1, 4, 36, 51, 53), ], row.names = FALSE)
+```
+
+
+### Outlier Detection
+
+```{r cache = TRUE}
+bma_audience2 <- bas.lm(audience_score ~ ., data = na.omit(movies_ext_reg), prior = "ZS-null", modelprior = uniform(), method = "MCMC")
+plot(bma_audience2)
+```
+
 
 * * *
 
