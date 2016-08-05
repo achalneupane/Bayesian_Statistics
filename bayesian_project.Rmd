@@ -91,7 +91,7 @@ movies_ext <- movies_ext %>% mutate(summer_season = ifelse(thtr_rel_month %in% c
 We will finally coerce the variable *thtr_rel_year* as a factor.
 
 ```{r}
-movies_ext <- movies_ext %>% mutate(thtr_rel_year = factor(thtr_rel_year))
+#movies_ext <- movies_ext %>% mutate(thtr_rel_year = factor(thtr_rel_year))
 ```
 
 * * *
@@ -133,8 +133,8 @@ movies_ext %>% group_by(mpaa_rating_R) %>% summarise(median_score = median(audie
 Here also, it is not so clear that the variables *mpaa_rating_R* and the response *audience_score* are associated. The variable *mpaa_rating_R* may not be a good predictor for the response.
 
 ```{r}
-ggplot(movies_ext, aes(x = thtr_rel_year, y = audience_score)) + geom_boxplot() + xlab("Release Year") + ylab("Audience Score") + ggtitle("Audience Score vs. Release Year") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-movies_ext %>% group_by(thtr_rel_year) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
+#ggplot(movies_ext, aes(x = thtr_rel_year, y = audience_score)) + geom_boxplot() + xlab("Release Year") + ylab("Audience Score") + ggtitle("Audience Score vs. Release Year") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#movies_ext %>% group_by(thtr_rel_year) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
 ```
 
 The variables *thtr_rel_year* and the response *audience_score* may be in some way associated.
@@ -236,7 +236,7 @@ ggQQ <- function(LM) # argument: a linear model
     int <- y[1L] - slope * x[1L]
     p <- ggplot(LM, aes(sample = .resid)) +
         stat_qq(alpha = 0.5) +
-        geom_abline(slope = slope, intercept = int, color = "red")
+        geom_abline(slope = slope, intercept = int, color = "red") + xlab("Theoretical Quantiles") + ylab("Sample Quantiles")
 
     return(p)
 }
@@ -245,14 +245,9 @@ ggQQ <- function(LM) # argument: a linear model
 
 ```{r}
 m_audience <- lm(audience_score ~ ., data = movies_ext_reg)
-ggplot(data = m_audience, aes(x = .fitted, y = .resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  xlab("Fitted values") +
-  ylab("Residuals")
 ggplot(data = m_audience, aes(x = .resid)) +
   geom_histogram(binwidth = 3) +
-  xlab("Residuals")
+  xlab("Residuals") + ylab("Count")
 ggQQ(m_audience)
 ```
 
@@ -272,49 +267,98 @@ As you may see from the summary above, many coefficients of independent variable
 
 We will now use Bayesian Model Averaging (BMA), in which multiple models are averaged to obtain posteriors of coefficients and predictions from new data.
 
-```{r cache = TRUE}
+```{r}
 bma_audience <- bas.lm(audience_score ~ ., data = na.omit(movies_ext_reg), prior = "BIC", modelprior = uniform(), method = "MCMC")
+bma_audience
 summary(bma_audience)
 ```
 
-Here, the most likely model, which has posterior probability of 0.0068, includes an intercept and the variables *runtime*, *thtr_rel_year*, *imdb_rating* and *critics_score*.
+Here, the most likely model, which has posterior probability of 0.0068, includes an intercept and the variables *runtime*, *imdb_rating* and *critics_score*.
 
-We amy also visualize the posterior distribution of the coefficients under the model averaging approach for the most likely model.
-
-```{r cache = TRUE}
-par(mfrow = c(2, 2))
-coef_audience <- coefficients(bma_audience)
-plot(coef_audience, subset = c(4, 36, 51, 53), ask = FALSE)
-```
-
-Below, you'll find the 95% credible intervals for these coefficients.
+We may also visualize the posterior distribution of the coefficients under the model averaging approach for the most likely model.
 
 ```{r}
-confint(coef_audience)[c(4, 36, 51, 53), ]
+par(mfrow = c(2, 2))
+coef_audience <- coefficients(bma_audience)
+plot(coef_audience, subset = c(4, 9, 11), ask = FALSE)
 ```
 
 ### Interpretation of Model Coefficients
 
+In the table below, you'll find the posterior means and posterior standard deviations for the variables present in the most likely model.
+
 ```{r}
-print(data.frame("Name" = coef_audience$namesx, "Post Mean" = coef_audience$postmean, "Post SD" = coef_audience$postsd)[c(1, 4, 36, 51, 53), ], row.names = FALSE)
+print(data.frame("Name" = coef_audience$namesx, "Post Mean" = coef_audience$postmean, "Post SD" = coef_audience$postsd)[c(1, 4, 9, 11), ], row.names = FALSE)
 ```
 
+Below, you'll also find the 95% credible intervals for these coefficients.
+
+```{r}
+cred_int <- confint(coef_audience)[c(4, 9, 11), ]
+cred_int
+```
+
+We may interpret these intervals by saying that, for example, there is a 95% chance that the audience score will increase by `r round(cred_int[2, 1], 1)` to `r round(cred_int[2, 2], 1)` points with every additional rating IMDb point increase. Similarly, there is a 95% chance that the audience score will increase by `r round(cred_int[1, 1], 1)` to `r round(cred_int[1, 2], 1)` points with every additional runtime minute, and finally, there is a 95% chance that the audience score will increase by `r round(cred_int[3, 1], 1)` to `r round(cred_int[3, 2], 1)` points with every additional critics score point increase.
 
 ### Outlier Detection
 
-```{r cache = TRUE}
-bma_audience2 <- bas.lm(audience_score ~ ., data = na.omit(movies_ext_reg), prior = "ZS-null", modelprior = uniform(), method = "MCMC")
-plot(bma_audience2)
+If we look at the residual plot of observed and fitted values under BMA, some observations (namely observations 126, 216 and 251) have large absolute residuals, it remains to see if these may be characterized as outliers.
+
+```{r}
+plot(bma_audience, which = 1)
 ```
 
+Some form of outliers selection or model averaging is needed in combination with posterior inference about the other variables.
+
+```{r}
+set.seed(1)
+n <- nrow(na.omit(movies_ext_reg))
+audience_outliers <- cbind(na.omit(movies_ext_reg), diag(1, nrow = n))
+outliers_audience <- bas.lm(audience_score ~ ., data = audience_outliers, prior = "ZS-null", a = n, modelprior = tr.beta.binomial(a = 1, b = 1, trunc = n/2), method = "MCMC", initprobs = "marg-eplogp", MCMC.iterations = 500000, n.models = 2^15)
+```
+
+If we take a look at the diagnostic plot for MCMC, we see that the inclusion probabilities are in reasonable agreement, this is probably adequate for the outlier detection.
+
+```{r}
+diagnostics(outliers_audience, type = "pip")
+```
+
+Now, let's have a look at which variables have high marginal inclusion probabilities.
+
+```{r}
+outliers_audience$namesx[outliers_audience$probne0 > 0.5]
+```
+
+This suggests that cases 126, 216 and 251 are potential outliers. Before deciding to remove them, we need to investigate these cases and determine if there are valid reasons for why they may appear to be from a different population. But this is beyond the scope of this study.
 
 * * *
 
 ## Part 5: Prediction
 
-NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
-button above. Make sure that your code is visible in the project you submit. 
-Delete this note when before you submit your work.
+The movie which audience score we will try to predict is "Captain America : Civil War", the data about this movie is given in the following table.
+
+```{r}
+civil_war <- data.frame(audience_score = 90, feature_film = "yes", drama = "no", runtime = 147, mpaa_rating_R = "no", thtr_rel_year = 2016, oscar_season = "no", summer_season = "no", imdb_rating = 8.2, imdb_num_votes = 267240, critics_score = 90, best_pic_nom = "no", best_pic_win = "no", best_actor_win = "no", best_actress_win = "no", best_dir_win = "no", top200_box = "yes")
+civil_war$feature_film <- factor(civil_war$feature_film, levels = c("yes", "no"))
+civil_war$drama <- factor(civil_war$drama, levels = c("yes", "no"))
+civil_war$mpaa_rating_R <- factor(civil_war$mpaa_rating_R, levels = c("yes", "no"))
+civil_war$oscar_season <- factor(civil_war$oscar_season, levels = c("yes", "no"))
+civil_war$summer_season <- factor(civil_war$summer_season, levels = c("yes", "no"))
+civil_war$best_pic_nom <- factor(civil_war$best_pic_nom, levels = c("no", "yes"))
+civil_war$best_pic_win <- factor(civil_war$best_pic_win, levels = c("no", "yes"))
+civil_war$best_actor_win <- factor(civil_war$best_actor_win, levels = c("no", "yes"))
+civil_war$best_actress_win <- factor(civil_war$best_actress_win, levels = c("no", "yes"))
+civil_war$best_dir_win <- factor(civil_war$best_dir_win, levels = c("no", "yes"))
+civil_war$top200_box <- factor(civil_war$top200_box, levels = c("no", "yes"))
+```
+
+The data for this movie comes from three websites : [IMDb](http://www.imdb.com/), [Rotten Tomatoes](https://www.rottentomatoes.com/) and [Box Office Mojo](http://www.boxofficemojo.com/). We will now predict the audience score with our model.
+
+```{r}
+BMA_pred_audience <-  predict(bma_audience, newdata = civil_war, estimator = "BMA", se.fit = TRUE, top = 100)
+```
+
+Our prediction for the audience score for "Captain America : Civil War" is `r round(BMA_pred_audience$Ybma[1], 2)`. Actually, the real audience score of "Captain America : Civil War" (as given by Rotten Tomatoes) is 90/100 which is pretty close to our predicted score.
 
 * * *
 
