@@ -21,15 +21,9 @@ library(GGally)
 
 ### Load data
 
-Make sure your data and R Markdown files are in the same directory. When loaded
-your data file will be called `movies`. Delete this note when before you submit 
-your work. 
-
 ```{r load-data}
 load("movies.Rdata")
 ```
-
-
 
 * * *
 
@@ -88,12 +82,6 @@ movies_ext <- movies_ext %>% mutate(oscar_season = ifelse(thtr_rel_month %in% c(
 movies_ext <- movies_ext %>% mutate(summer_season = ifelse(thtr_rel_month %in% c(5, 6, 7, 8), "yes", "no")) %>% mutate(summer_season = factor(summer_season, levels = c("yes", "no")))
 ```
 
-We will finally coerce the variable *thtr_rel_year* as a factor.
-
-```{r}
-#movies_ext <- movies_ext %>% mutate(thtr_rel_year = factor(thtr_rel_year))
-```
-
 * * *
 
 ## Part 3: Exploratory data analysis
@@ -101,11 +89,11 @@ We will finally coerce the variable *thtr_rel_year* as a factor.
 Let's begin by plotting a histogram of the response variable.
 
 ```{r}
-ggplot(movies_ext, aes(x = audience_score)) + geom_histogram() + xlab("Audience Score") + ylab("Count") + ggtitle("Histogram of Audience Score")
+ggplot(movies_ext, aes(x = audience_score)) + geom_histogram(binwidth = 3) + xlab("Audience Score") + ylab("Count") + ggtitle("Histogram of Audience Score")
 summary(movies_ext$audience_score)
 ```
 
-The distribution of the *audience_score* variable exhibits a left skew and may be uni- or bimodal.
+The distribution of the *audience_score* variable exhibits a left skew and may be uni- or multimodal.
 
 ### Boxplots of Response vs. Categorical Predictors
 
@@ -123,7 +111,7 @@ ggplot(movies_ext, aes(x = drama, y = audience_score)) + geom_boxplot() + xlab("
 movies_ext %>% group_by(drama) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
 ```
 
-Here, it is not so clear that the variables *drama* and the response *audience_score* are associated. The variable *drama* may not be a good predictor for the response.
+Here, it is not so clear that the variables *drama* and the response *audience_score* are associated. The variable *drama* may not be a very good predictor for the response.
 
 ```{r}
 ggplot(movies_ext, aes(x = mpaa_rating_R, y = audience_score)) + geom_boxplot() + xlab("R-Rated") + ylab("Audience Score") + ggtitle("Audience Score vs. R-Rated")
@@ -131,13 +119,6 @@ movies_ext %>% group_by(mpaa_rating_R) %>% summarise(median_score = median(audie
 ```
 
 Here also, it is not so clear that the variables *mpaa_rating_R* and the response *audience_score* are associated. The variable *mpaa_rating_R* may not be a good predictor for the response.
-
-```{r}
-#ggplot(movies_ext, aes(x = thtr_rel_year, y = audience_score)) + geom_boxplot() + xlab("Release Year") + ylab("Audience Score") + ggtitle("Audience Score vs. Release Year") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#movies_ext %>% group_by(thtr_rel_year) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
-```
-
-The variables *thtr_rel_year* and the response *audience_score* may be in some way associated.
 
 ```{r}
 ggplot(movies_ext, aes(x = oscar_season, y = audience_score)) + geom_boxplot() + xlab("Oscar Season") + ylab("Audience Score") + ggtitle("Audience Score vs. Oscar Season")
@@ -186,7 +167,7 @@ ggplot(movies_ext, aes(x = best_dir_win, y = audience_score)) + geom_boxplot() +
 movies_ext %>% group_by(best_dir_win) %>% summarise(median_score = median(audience_score), iqr_score = IQR(audience_score))
 ```
 
-Here also, it is not so clear that the variables *best_dir_win* and the response *audience_score* are associated. The variable *best_dir_win* may not be a good predictor for the response.
+Here also, it is not so clear that the variables *best_dir_win* and the response *audience_score* are associated. The variable *best_dir_win* may not be a very good predictor for the response.
 
 ```{r}
 ggplot(movies_ext, aes(x = top200_box, y = audience_score)) + geom_boxplot() + xlab("Top 200 Box Office") + ylab("Audience Score") + ggtitle("Audience Score vs. Top 200 Box Office")
@@ -200,14 +181,14 @@ It seems that the variables *top200_box* and the response *audience_score* are i
 Now, we will use scatterplots to visualize how our numerical variables of interest interact with our response variable.
 
 ```{r warning = FALSE}
-ggpairs(movies_ext, columns = c(18, 4, 13, 14, 16), axisLabels = "none", columnLabels = c("Score", "Runtime", "Ratings", "Votes", "Critics"), title = "Pairs of Numerical Variables")
+ggpairs(movies_ext, columns = c(18, 4, 7, 13, 14, 16), axisLabels = "none", columnLabels = c("Score", "Runtime", "Year", "Ratings", "Votes", "Critics"), title = "Pairs of Numerical Variables")
 ```
 
-As we may see above, the correlations between predictors are not very high (bar *imdb_rating* and *critics_score*), which is a good thing when modeling with linear regression as it helps avoiding collinearity. We may also note that the variable *runtime* does not seem to be good predictors for our response variable.
+As we may see above, the correlations between predictors are not very high (bar *imdb_rating* and *critics_score*), which is a good thing when modeling with linear regression as it helps avoiding collinearity.
 
 ### Conclusion
 
-As our previous plots show, the variables *mpaa_rating_R*, *oscar_season*, *summer_season*, *besr_actor_win*, *best_actress_win* and *runtime* do not seem to be particularly relevant. However, we will keep them in our modeling phase to have a better answer to the research question.
+As our previous plots show, the variables *mpaa_rating_R*, *oscar_season*, *summer_season*, *best_actor_win*, *best_actress_win* and *runtime* do not seem to be particularly relevant. However, we will keep them in our modeling phase to have a better answer to the research question.
 
 ```{r}
 movies_ext_reg <- movies_ext %>% select(audience_score, feature_film, drama, runtime, mpaa_rating_R, thtr_rel_year, oscar_season, summer_season, imdb_rating, imdb_num_votes, critics_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box)
@@ -227,7 +208,9 @@ if $\epsilon_i \sim N(0, \sigma^2)$ and the reference prior $p(\beta_0,\cdots,\b
 
 As the Bayesian model assumes that the errors are normally distributed with a constant variance, we have to check this assumption by examining the distribution of the residuals for the model. If the residuals are highly non-normal or skewed, the assumption is violated and any subsequent inference will not be valid.
 
-```{r echo = FALSE}
+First, we will define a function which will help us to visualize QQ-plots.
+
+```{r}
 ggQQ <- function(LM) # argument: a linear model
 {
     y <- quantile(LM$resid[!is.na(LM$resid)], c(0.25, 0.75))
@@ -242,6 +225,7 @@ ggQQ <- function(LM) # argument: a linear model
 }
 ```
 
+Let's have a look a the distribution and at the QQ-plot of the residuals.
 
 ```{r}
 m_audience <- lm(audience_score ~ ., data = movies_ext_reg)
@@ -251,7 +235,7 @@ ggplot(data = m_audience, aes(x = .resid)) +
 ggQQ(m_audience)
 ```
 
-Based on the plots above it does seem that the residuals exhibit a moderate right skew which may render our inference non pertinent. We have to keep that fact in mind when we conclude our analysis.
+Based on the plots above it does seem that the residuals exhibit a moderate right skew which may render our inference less pertinent. We have to keep that fact in mind when we conclude our analysis.
 
 ### Baseline Model
 
@@ -267,15 +251,15 @@ As you may see from the summary above, many coefficients of independent variable
 
 We will now use Bayesian Model Averaging (BMA), in which multiple models are averaged to obtain posteriors of coefficients and predictions from new data.
 
-```{r}
+```{r cache = TRUE}
 bma_audience <- bas.lm(audience_score ~ ., data = na.omit(movies_ext_reg), prior = "BIC", modelprior = uniform(), method = "MCMC")
 bma_audience
 summary(bma_audience)
 ```
 
-Here, the most likely model, which has posterior probability of 0.0068, includes an intercept and the variables *runtime*, *imdb_rating* and *critics_score*.
+Here, the most likely model, which has posterior probability of `r as.numeric(summary(bma_audience)[1, "PostProbs"])`, includes an intercept and the variables *runtime*, *imdb_rating* and *critics_score*.
 
-We may also visualize the posterior distribution of the coefficients under the model averaging approach for the most likely model.
+We may also visualize the posterior distribution of the coefficients under the model averaging approach for the variables included in the most likely model.
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -331,6 +315,13 @@ outliers_audience$namesx[outliers_audience$probne0 > 0.5]
 
 This suggests that cases 126, 216 and 251 are potential outliers. Before deciding to remove them, we need to investigate these cases and determine if there are valid reasons for why they may appear to be from a different population. But this is beyond the scope of this study.
 
+We may also note that if we remove these cases, the hypothesis of normality of the residuals for our baseline model is much more verified.
+
+```{r}
+m_audience_out <- lm(audience_score ~ ., data = movies_ext_reg[-c(126, 216, 251), ])
+ggQQ(m_audience_out)
+```
+
 * * *
 
 ## Part 5: Prediction
@@ -358,9 +349,14 @@ The data for this movie comes from three websites : [IMDb](http://www.imdb.com/)
 BMA_pred_audience <-  predict(bma_audience, newdata = civil_war, estimator = "BMA", se.fit = TRUE, top = 100)
 ```
 
-Our prediction for the audience score for "Captain America : Civil War" is `r round(BMA_pred_audience$Ybma[1], 2)`. Actually, the real audience score of "Captain America : Civil War" (as given by Rotten Tomatoes) is 90/100 which is pretty close to our predicted score.
+Our prediction for the audience score for "Captain America : Civil War" is `r round(BMA_pred_audience$Ybma[1], 2)`/100. Actually, the real audience score of "Captain America : Civil War" (as given by Rotten Tomatoes) is 90/100 which is pretty close to our predicted score.
 
 * * *
 
 ## Part 6: Conclusion
 
+In conclusion, we can actually predict the popularity of a movie (as represented by the *audience_score* variable) by using the variables included in this analysis.
+
+This assertion comes from the fact that we were able to build a bayesian linear model to predict our response with the aforementioned variables as predictors. We used Bayesian Model Averaging to build a usable model in which multiple models are averaged to obtain posteriors of coefficients (the most likely model only included the variables *runtime*, *imdb_rating* and *critics_score*). We also tested our model by predicting the audience score for a 2016 movie "Captain America : Civil War", our predicted score was very close to the actual score for this movie.
+
+Moreover, we should also be aware of the fact that we could not validate our model hypothesis of normality; the residuals did not exhibit a nearly normal distribution. As the linear model assumptions were not fully respected, we must consider our conclusions with appropriate caution^[However, if we had removed three cases that may be considered as outliers, the residuals would have exhibited a distribution much closer to normal.].
